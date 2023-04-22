@@ -4,6 +4,7 @@ const validator = require("../helpers/validator")
 const bodyParser = require("body-parser")
 const path = require("path")
 const fs = require("fs")
+const e = require("express")
 
 taskRoutes.use(bodyParser.urlencoded({ extended: false }))
 taskRoutes.use(bodyParser.json())
@@ -18,22 +19,42 @@ taskRoutes.put("/:taskId", ((req, res) => {
     let updateReqBody = req?.body
     //Checking if particular task exist on array or not
     let taskExists = tasks?.filter(item => item?.taskId === parseInt(taskId))
-    taskExists[0] = { ...taskExists[0], updateReqBody }
+    //<==========We can move it to util file but for now let it be here!!=========>
+    const validateReqBody = () => {
+        if (updateReqBody.hasOwnProperty("taskText") ||
+            updateReqBody.hasOwnProperty("taskId") ||
+            updateReqBody.hasOwnProperty("priority") ||
+            updateReqBody.hasOwnProperty("priorityId") ||
+            updateReqBody.hasOwnProperty("creationDate")) {
+            return { "status": true, "message": "" }
+        } else {
+            return { "status": false, "message": "Please provide correct keys to update data." }
+        }
+    }
+
+    taskExists[0] = { ...taskExists[0], ...updateReqBody }
 
     //checking if result exists or not
-    if (!taskExists.length) {
+    if (!taskExists.length || !validateReqBody().status) {
         res.status(404)
+        if (!validateReqBody().status) {
+            res.send(validateReqBody().message)
+        }
         res.send("Task not found! Please try with valid task id.")
-    } else {
+    }
+    else {
         let result = {}
         //Finding the task id and returning the array without that particular task id
-        if (taskId) result = { tasks: tasks?.filter(item => item?.taskId === parseInt(taskId)) }
+        if (taskId) {
+            result = { tasks: tasks?.filter(item => item?.taskId !== parseInt(taskId)) }
+            result.tasks.push(taskExists[0])
+        }
         let writePath = path.join(__dirname, "..", "tasks.json")
         // Parsing to stringyfy in order to save it to file.
         let taskDataModified = JSON.parse(JSON.stringify(result))
         fs.writeFileSync(writePath, JSON.stringify(taskDataModified), { encoding: "utf-8", flag: "w" })
         res.status(200)
-        res.send(`Successfully deleted the task ${taskId}`)
+        res.send(`Successfully updated the task ${taskId}`)
     }
 }))
 
